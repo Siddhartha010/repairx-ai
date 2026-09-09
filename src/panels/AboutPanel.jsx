@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { AGENTS } from '../mockData';
+import ERDiagram from './ERDiagram';
+import DFDDiagram from './DFDDiagram';
 
 const FEATURES = [
   { icon: '🚨', title: 'Real-Time Anomaly Detection', desc: 'Sentinel AI monitors all services 24/7, detecting anomalies within milliseconds using statistical baselines and ML models. No manual threshold tuning required.' },
@@ -233,6 +235,55 @@ export default function AboutPanel() {
           ))}
         </div>
       </Card>
+
+      {/* ER Diagram */}
+      <div className="glass rounded-2xl border border-blue-500/20 p-5">
+        <SectionTitle label="Entity Relationship Diagram" sub="Conceptual data model — how REPAIRX would structure its database in production" />
+        <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-700/40 overflow-x-auto">
+          <ERDiagram />
+        </div>
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+          {[
+            { color: 'text-red-400', label: 'INCIDENT', desc: 'Core entity — every detected failure with severity, status, MTTR' },
+            { color: 'text-blue-400', label: 'SERVICE', desc: 'Monitored microservices with health and region metadata' },
+            { color: 'text-cyan-400', label: 'METRIC', desc: 'Time-series telemetry per service — latency, errors, CPU, memory' },
+            { color: 'text-purple-400', label: 'AI_AGENT', desc: 'The 6 autonomous agents with accuracy and task tracking' },
+            { color: 'text-yellow-400', label: 'ROOT_CAUSE', desc: 'RCA output — description, confidence score, deploy reference' },
+            { color: 'text-green-400', label: 'FIX', desc: 'AI-generated code fix with risk score and test results' },
+            { color: 'text-cyan-400', label: 'DEPLOYMENT', desc: 'Canary deployment record with strategy and rollout status' },
+            { color: 'text-violet-400', label: 'KNOWLEDGE_BASE', desc: 'Learned resolution patterns with confidence and use count' },
+            { color: 'text-pink-400', label: 'PREDICTION', desc: 'Oracle future failure predictions with risk % and ETA' },
+          ].map(e => (
+            <div key={e.label} className="p-2 bg-slate-800/40 rounded-lg border border-slate-700/30">
+              <div className={`text-xs font-bold font-mono ${e.color}`}>{e.label}</div>
+              <div className="text-slate-500 text-xs mt-0.5 leading-relaxed">{e.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* DFD Diagram */}
+      <div className="glass rounded-2xl border border-purple-500/20 p-5">
+        <SectionTitle label="Data Flow Diagram" sub="How data moves through the REPAIRX AI autonomous pipeline" />
+        <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-700/40 overflow-x-auto">
+          <DFDDiagram />
+        </div>
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+          {[
+            { icon: '🔵', label: 'P1 — Sentinel', desc: 'Ingests service telemetry, detects anomalies, creates incidents' },
+            { icon: '🟣', label: 'P2 — Sherlock', desc: 'Receives anomaly context, queries KB, outputs root cause' },
+            { icon: '🟡', label: 'P3 — Forge', desc: 'Takes root cause, generates fix package, stores to D3' },
+            { icon: '🟢', label: 'P4 — Guardian', desc: 'Validates fix in staging, scores risk, sends report to engineers' },
+            { icon: '🩵', label: 'P5 — Pilot', desc: 'Deploys approved fix via canary, streams status to dashboard' },
+            { icon: '🩷', label: 'P6 — Oracle', desc: 'Reads resolved incidents and KB patterns, sends predictive alerts' },
+          ].map(p => (
+            <div key={p.label} className="p-2 bg-slate-800/40 rounded-lg border border-slate-700/30">
+              <div className="text-xs font-bold text-white flex items-center gap-1.5"><span>{p.icon}</span>{p.label}</div>
+              <div className="text-slate-500 text-xs mt-0.5 leading-relaxed">{p.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Features */}
       <div>

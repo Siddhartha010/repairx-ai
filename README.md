@@ -286,6 +286,142 @@ vercel --prod
 
 ---
 
+
+---
+
+## 🗃️ Entity Relationship Diagram
+
+> Conceptual data model — how REPAIRX AI would structure its database in a production system.
+
+```
+┌─────────────────┐        ┌──────────────────┐        ┌─────────────────┐
+│    SERVICE      │        │    INCIDENT       │        │   AI_AGENT      │
+│─────────────────│        │──────────────────│        │─────────────────│
+│ PK service_id   │──────▶ │ PK incident_id   │ ◀───── │ PK agent_id     │
+│    name         │ affects│    severity       │handled │    name         │
+│    region       │        │    title          │   by   │    role         │
+│    status       │        │    status         │        │    accuracy_pct │
+│    uptime_pct   │        │    created_at     │        │    tasks_done   │
+└────────┬────────┘        │    resolved_at    │        │    status       │
+         │ has             │    mttr_minutes   │        └────────┬────────┘
+         ▼                 └────────┬──────────┘                 │
+┌─────────────────┐                │ belongs to                  │
+│    METRIC       │                ▼                             │
+│─────────────────│        ┌──────────────────┐                 │
+│ PK metric_id    │        │   ROOT_CAUSE      │ ◀──────────────┘
+│ FK service_id   │        │──────────────────│  handled by
+│    latency_p99  │        │ PK rca_id         │
+│    error_rate   │        │ FK incident_id    │
+│    cpu_pct      │        │ FK agent_id       │
+│    mem_pct      │        │    description    │
+│    recorded_at  │        │    confidence_pct │
+└─────────────────┘        │    deploy_ref     │
+                           └────────┬──────────┘
+                    ┌───────────────┼───────────────┐
+                    ▼               ▼               ▼
+          ┌──────────────┐  ┌─────────────┐  ┌──────────────────┐
+          │     FIX      │  │KNOWLEDGE_   │  │   PREDICTION     │
+          │──────────────│  │BASE         │  │──────────────────│
+          │ PK fix_id    │  │─────────────│  │ PK pred_id       │
+          │ FK rca_id    │  │ PK kb_id    │  │ FK agent_id      │
+          │ FK agent_id  │  │ FK rca_id   │  │ FK service_id    │
+          │    filename  │  │    title    │  │    risk_pct      │
+          │    lines_chg │  │    category │  │    issue         │
+          │    tests_pass│  │    conf_pct │  │    eta           │
+          │    risk_score│  │    use_count│  │    action        │
+          └──────┬───────┘  └─────────────┘  └──────────────────┘
+                 │ deploys
+                 ▼
+          ┌──────────────┐
+          │  DEPLOYMENT  │
+          │──────────────│
+          │ PK deploy_id │
+          │ FK fix_id    │
+          │ FK agent_id  │
+          │    version   │
+          │    strategy  │
+          │    status    │
+          │    canary_pct│
+          └──────────────┘
+```
+
+**Entity Descriptions:**
+
+| Entity | Description |
+|---|---|
+| SERVICE | Monitored microservices with health status and region metadata |
+| METRIC | Time-series telemetry per service — latency, error rate, CPU, memory |
+| INCIDENT | Core entity — every detected failure with severity, status, and MTTR |
+| AI_AGENT | The 6 autonomous agents with accuracy scores and task tracking |
+| ROOT_CAUSE | RCA output — description, confidence score, and triggering deploy reference |
+| FIX | AI-generated code fix with risk score and test pass/fail results |
+| DEPLOYMENT | Canary deployment record with strategy, traffic percentage, and status |
+| KNOWLEDGE_BASE | Learned resolution patterns with confidence scores and usage counts |
+| PREDICTION | Oracle future failure predictions with risk percentage and ETA |
+
+---
+
+## 🔄 Data Flow Diagram
+
+### Level 0 — Context Diagram
+
+```
+                    metrics / logs / traces
+  ┌─────────────┐ ─────────────────────────▶ ┌─────────────────────────┐
+  │ PRODUCTION  │                             │                         │
+  │  SERVICES   │ ─────────────────────────▶ │      REPAIRX AI         │ ──────▶ alerts / reports ──────▶ ┌───────────┐
+  └─────────────┘   service telemetry         │   Autonomous Engine     │                                  │ ENGINEERS │
+                                              │                         │ ──────▶ live metrics / status ──▶ └───────────┘
+                    override / approve        │                         │
+  ┌─────────────┐ ◀─────────────────────────  │                         │ ──────▶ code fix / deploy ──────▶ ┌───────────┐
+  │  ENGINEERS  │                             └─────────────────────────┘                                  │ PROD ENV  │
+  └─────────────┘                                                                                          └───────────┘
+```
+
+### Level 1 — Detailed Data Flow
+
+```
+  ┌──────────┐  telemetry   ┌──────────────┐  anomaly ctx  ┌──────────────┐  root cause  ┌──────────────┐
+  │ SERVICES │ ───────────▶ │ P1: SENTINEL │ ────────────▶ │ P2: SHERLOCK │ ───────────▶ │  P3: FORGE   │
+  └──────────┘              └──────┬───────┘               └──────┬───────┘              └──────┬───────┘
+                                   │ create                        │ KB lookup                    │ fix pkg
+                                   │ incident                      ▼ (async)                     │
+                                   ▼                        ┌─────────────┐                      ▼
+                            ┌─────────────┐                 │ D2:         │              ┌──────────────┐
+                            │ D1:         │                 │ KNOWLEDGE   │              │ P4: GUARDIAN │
+                            │ INCIDENTS   │                 │ BASE        │              └──────┬───────┘
+                            └──────┬──────┘                └─────────────┘                     │ approved
+                                   │ resolved                                                   │ fix
+                                   │ incidents                                                  ▼
+                                   ▼                                                    ┌──────────────┐
+                            ┌──────────────┐  patterns                                 │  P5: PILOT   │
+                            │  P6: ORACLE  │ ◀──────────────────────────────────────── │              │
+                            └──────┬───────┘                                           └──────┬───────┘
+                                   │ predictive                                                │ canary
+                                   │ alerts                                                    │ deploy
+                                   ▼                                                           ▼
+                            ┌──────────────┐                                          ┌──────────────┐
+                            │  ENGINEERS   │                                          │   PROD ENV   │
+                            └──────────────┘                                          └──────────────┘
+
+  Data Stores:
+  D1: INCIDENTS ── stores all detected and resolved incidents
+  D2: KNOWLEDGE BASE ── stores learned resolution patterns
+  D3: FIXES ── stores all AI-generated code fixes (not shown for brevity)
+```
+
+**Process Descriptions:**
+
+| Process | Agent | Input | Output |
+|---|---|---|---|
+| P1 — Detect | Sentinel | Service telemetry (metrics, logs) | Anomaly context, incident record |
+| P2 — Investigate | Sherlock | Anomaly context, KB patterns | Root cause with confidence score |
+| P3 — Fix | Forge | Root cause analysis | Validated fix package |
+| P4 — Validate | Guardian | Fix package | Risk-scored approval, engineer report |
+| P5 — Deploy | Pilot | Approved fix | Canary deployment, status stream |
+| P6 — Predict | Oracle | Resolved incidents, KB patterns | Predictive alerts to engineers |
+
+
 ## ⚠️ Disclaimer
 
 REPAIRX AI is a **Phase 1 hackathon prototype** built for demonstration purposes. All incidents, metrics, services, agents, and resolutions shown are **fully simulated with mock data**. No real infrastructure is monitored, no real code is deployed, and no real systems are modified. The AI chatbot uses a rule-based response engine — not a live LLM. This prototype demonstrates the **concept, UX, and technical feasibility** of autonomous production engineering.
